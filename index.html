@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>无人机联动AI识别 · 问题事件管理平台 (优化版)</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg-dark:#0a0e1a;
+  --bg-panel:rgba(10,20,45,0.85);
+  --bg-card:rgba(15,30,65,0.7);
+  --border:rgba(0,150,255,0.15);
+  --border-glow:rgba(0,180,255,0.4);
+  --blue:#00b4ff;--blue-deep:#0066cc;
+  --cyan:#00e5ff;--green:#00e676;--yellow:#ffc107;
+  --white:#e0eaff;--white-dim:rgba(200,215,255,0.6);
+  --font:'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  --left-width:420px;
+}
+html,body{height:100%;font-family:var(--font);background:var(--bg-dark);color:var(--white);overflow:hidden}
+::selection{background:var(--blue);color:#fff}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border-glow);border-radius:3px}
+
+/* === Background === */
+.bg-grid{position:fixed;inset:0;z-index:0;
+  background-image:linear-gradient(rgba(0,120,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,120,255,0.04) 1px,transparent 1px);
+  background-size:60px 60px;animation:gridMove 20s linear infinite}
+@keyframes gridMove{0%{background-position:0 0}100%{background-position:60px 60px}}
+.bg-particles{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.bg-particles span{position:absolute;display:block;width:2px;height:2px;background:var(--cyan);border-radius:50%;opacity:0;animation:float linear infinite}
+@keyframes float{0%{transform:translateY(100vh) scale(0);opacity:0}10%{opacity:.8}90%{opacity:.8}100%{transform:translateY(-10vh) scale(1);opacity:0}}
+
+.app{display:flex;flex-direction:column;height:100vh;position:relative;z-index:1}
+
+/* === Header === */
+.header{display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:56px;
+  background:linear-gradient(90deg,rgba(0,50,120,0.6),rgba(0,20,60,0.8));
+  border-bottom:1px solid var(--border);backdrop-filter:blur(16px);flex-shrink:0;position:relative}
+.header-left{display:flex;align-items:center;gap:14px}
+.logo{width:32px;height:32px;background:linear-gradient(135deg,var(--cyan),var(--blue));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 0 16px rgba(0,180,255,0.3)}
+.header h1{font-size:16px;font-weight:600;letter-spacing:1px;background:linear-gradient(90deg,var(--white),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header-right{display:flex;align-items:center;gap:18px}
+.header-time{font-size:12px;color:var(--white-dim);font-variant-numeric:tabular-nums}
+.header-badge{display:flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;background:rgba(0,180,255,0.1);border:1px solid var(--border);font-size:12px;color:var(--cyan)}
+.header-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.header::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--cyan),transparent);animation:headerGlow 4s ease-in-out infinite}
+@keyframes headerGlow{0%,100%{opacity:.2}50%{opacity:.7}}
+
+/* === Body === */
+.body{display:flex;flex:1;overflow:hidden}
+
+/* === Left Panel (resizable) === */
+.left-panel{
+  width:var(--left-width);flex-shrink:0;display:flex;flex-direction:column;
+  border-right:1px solid var(--border);background:var(--bg-panel);backdrop-filter:blur(12px);
+  position:relative;transition:width .15s ease;
+}
+.resize-handle{
+  position:absolute;right:-4px;top:0;bottom:0;width:8px;cursor:col-resize;z-index:30;
+  background:transparent;transition:background .2s;
+}
+.resize-handle:hover,.resize-handle.active{background:var(--cyan);opacity:.3}
+
+/* === Filters === */
+.filters{padding:12px 14px;display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--border);flex-shrink:0}
+.filter-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.search-box{display:flex;align-items:center;gap:6px;flex:1;min-width:180px;background:rgba(0,30,70,0.6);border:1px solid var(--border);border-radius:6px;padding:0 10px}
+.search-box input{flex:1;background:none;border:none;color:var(--white);font-size:12px;padding:6px 0;outline:none}
+.search-box .icon{color:var(--white-dim);font-size:14px}
+.filter-group{display:flex;align-items:center;gap:6px}
+.filter-group label{font-size:11px;color:var(--white-dim);white-space:nowrap}
+.filter-select{background:rgba(0,30,70,0.6);border:1px solid var(--border);color:var(--white);font-size:12px;padding:5px 10px;border-radius:6px;outline:none;cursor:pointer}
+.filter-select:focus{border-color:var(--cyan)}
+.time-range-group{display:flex;align-items:center;gap:6px}
+.time-input{background:rgba(0,30,70,0.6);border:1px solid var(--border);color:var(--white);font-size:12px;padding:5px 10px;border-radius:6px;outline:none;cursor:pointer;color-scheme:dark}
+.time-input:focus{border-color:var(--cyan)}
+.time-sep{font-size:11px;color:var(--white-dim)}
+
+/* === Toolbar (density + sort + group toggle) === */
+.toolbar{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;border-bottom:1px solid var(--border);flex-shrink:0;gap:8px}
+.toolbar-left{display:flex;align-items:center;gap:6px}
+.toolbar-right{display:flex;align-items:center;gap:6px}
+.tb-btn{
+  padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;
+  background:rgba(0,30,70,0.6);border:1px solid var(--border);color:var(--white-dim);
+  display:flex;align-items:center;gap:4px;transition:all .2s;white-space:nowrap;
+}
+.tb-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+.tb-btn.active{background:rgba(0,229,255,0.12);border-color:var(--cyan);color:var(--cyan)}
+.tb-divider{width:1px;height:16px;background:var(--border)}
+.tb-info{font-size:11px;color:var(--white-dim)}
+
+/* === Stats === */
+.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+.stat-card{text-align:center;padding:8px 4px;background:var(--bg-card);border-radius:8px;border:1px solid var(--border);position:relative;overflow:hidden}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--cyan),transparent)}
+.stat-card .num{font-size:20px;font-weight:700;color:var(--cyan);font-variant-numeric:tabular-nums;text-shadow:0 0 12px rgba(0,229,255,0.3)}
+.stat-card .label{font-size:10px;color:var(--white-dim);margin-top:2px}
+.stat-card.ai .num{color:var(--cyan)}
+.stat-card.manual .num{color:var(--yellow)}
+
+/* === Group Header === */
+.group-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 12px;margin:6px 8px 0;border-radius:8px;
+  background:rgba(0,40,90,0.3);border:1px solid var(--border);
+  cursor:pointer;transition:all .2s;user-select:none;
+}
+.group-header:hover{border-color:var(--border-glow);background:rgba(0,50,100,0.4)}
+.group-header .group-left{display:flex;align-items:center;gap:8px}
+.group-header .group-icon{font-size:14px}
+.group-header .group-name{font-size:12px;font-weight:600;color:var(--white)}
+.group-header .group-count{
+  font-size:10px;padding:1px 8px;border-radius:10px;
+  background:rgba(0,229,255,0.15);color:var(--cyan);border:1px solid rgba(0,229,255,0.2);
+}
+.group-header .group-arrow{font-size:10px;color:var(--white-dim);transition:transform .2s}
+.group-header.collapsed .group-arrow{transform:rotate(-90deg)}
+
+/* === Event List === */
+.event-list{flex:1;overflow-y:auto;padding:0 0 8px}
+.event-item{
+  padding:10px 14px;margin:0 8px 4px;
+  background:var(--bg-card);border:1px solid var(--border);
+  border-radius:8px;cursor:pointer;transition:all .25s;position:relative;
+}
+.event-item:hover{border-color:var(--border-glow);background:rgba(0,40,90,0.5);box-shadow:0 0 20px rgba(0,150,255,0.08);transform:translateX(2px)}
+.event-item.active{border-color:var(--cyan);background:rgba(0,60,120,0.4);box-shadow:0 0 24px rgba(0,180,255,0.12),inset 0 0 30px rgba(0,180,255,0.03)}
+.event-item .top-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.event-item .title{font-size:13px;font-weight:600;color:var(--white);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.event-item .meta{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.meta-tag{display:inline-flex;align-items:center;gap:3px;font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(0,80,160,0.25);color:var(--white-dim);border:1px solid rgba(0,120,255,0.1)}
+.meta-tag.source-ai{background:rgba(0,229,255,0.12);color:var(--cyan);border-color:rgba(0,229,255,0.2)}
+.meta-tag.source-manual{background:rgba(255,193,7,0.12);color:var(--yellow);border-color:rgba(255,193,7,0.2)}
+.event-item .bottom-row{display:flex;align-items:center;justify-content:space-between;margin-top:6px;font-size:10px;color:var(--white-dim)}
+.event-item .loc{display:flex;align-items:center;gap:3px}
+
+/* === Compact mode === */
+.compact .event-item{padding:7px 12px;margin-bottom:2px}
+.compact .event-item .title{font-size:12px}
+.compact .event-item .meta{display:none}
+.compact .event-item .bottom-row{margin-top:3px;font-size:9px}
+.compact .event-item .top-row{margin-bottom:2px}
+
+/* === Right Panel === */
+.right-panel{flex:1;display:flex;flex-direction:column;position:relative;overflow:hidden}
+
+/* === Map === */
+.map-container{flex:1;position:relative;overflow:hidden;background:#060d1f}
+.map-canvas{width:100%;height:100%;position:relative;
+  background:radial-gradient(ellipse at 30% 40%,rgba(0,80,180,0.08) 0%,transparent 60%),radial-gradient(ellipse at 70% 60%,rgba(0,140,255,0.06) 0%,transparent 50%),linear-gradient(180deg,#060d1f,#0a1628)}
+.map-grid{position:absolute;inset:0;opacity:0.15}
+.map-label{position:absolute;font-size:10px;color:rgba(0,180,255,0.25);letter-spacing:2px;text-transform:uppercase;pointer-events:none}
+
+.marker{position:absolute;transform:translate(-50%,-50%);cursor:pointer;z-index:10;transition:all .3s}
+.marker:hover{z-index:20;transform:translate(-50%,-50%) scale(1.3)}
+.marker .dot{width:14px;height:14px;border-radius:50%;position:relative;display:flex;align-items:center;justify-content:center;color:var(--cyan)}
+.marker .dot::before{content:'';position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--cyan);opacity:0.3;animation:markerPing 2s ease-out infinite}
+@keyframes markerPing{0%{transform:scale(1);opacity:.4}100%{transform:scale(2.2);opacity:0}}
+.marker .dot-inner{width:10px;height:10px;border-radius:50%;background:var(--cyan);box-shadow:0 0 12px var(--cyan)}
+.marker.source-ai .dot{color:var(--cyan)}.marker.source-ai .dot-inner{background:var(--cyan);box-shadow:0 0 12px var(--cyan)}
+.marker.source-manual .dot{color:var(--yellow)}.marker.source-manual .dot-inner{background:var(--yellow);box-shadow:0 0 12px var(--yellow)}
+.marker.source-manual .dot::before{border-color:var(--yellow)}
+.marker .tooltip{position:absolute;bottom:calc(100% + 10px);left:50%;transform:translateX(-50%);white-space:nowrap;background:rgba(5,15,40,0.95);border:1px solid var(--border-glow);padding:6px 12px;border-radius:8px;font-size:11px;color:var(--white);pointer-events:none;opacity:0;transition:opacity .2s;box-shadow:0 4px 20px rgba(0,0,0,0.4)}
+.marker:hover .tooltip{opacity:1}
+
+/* === Cluster Marker === */
+.cluster-marker{
+  position:absolute;transform:translate(-50%,-50%);cursor:pointer;z-index:15;
+  transition:all .3s;
+}
+.cluster-marker:hover{z-index:25;transform:translate(-50%,-50%) scale(1.2)}
+.cluster-dot{
+  width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:700;color:#fff;
+  background:radial-gradient(circle,var(--cyan),var(--blue-deep));
+  box-shadow:0 0 20px rgba(0,229,255,0.4),0 0 40px rgba(0,180,255,0.15);
+  border:2px solid rgba(0,229,255,0.5);
+}
+.cluster-dot.mixed{background:radial-gradient(circle,#6c5ce7,#4a148c);box-shadow:0 0 20px rgba(108,92,231,0.4);border-color:rgba(108,92,231,0.5)}
+.cluster-marker .cluster-tooltip{
+  position:absolute;bottom:calc(100% + 12px);left:50%;transform:translateX(-50%);
+  background:rgba(5,15,40,0.95);border:1px solid var(--border-glow);
+  padding:0;border-radius:10px;font-size:11px;color:var(--white);
+  pointer-events:none;opacity:0;transition:opacity .2s;
+  box-shadow:0 4px 24px rgba(0,0,0,0.5);width:220px;
+  overflow:hidden;
+}
+.cluster-marker:hover .cluster-tooltip{opacity:1}
+
+/* === Map Controls === */
+.map-controls{position:absolute;top:14px;right:14px;display:flex;flex-direction:column;gap:6px;z-index:20}
+.map-ctrl-btn{width:34px;height:34px;border-radius:8px;background:rgba(10,20,50,0.8);border:1px solid var(--border);color:var(--cyan);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;backdrop-filter:blur(8px)}
+.map-ctrl-btn:hover{border-color:var(--cyan);background:rgba(0,40,100,0.6)}
+.map-legend{position:absolute;bottom:14px;left:14px;background:rgba(10,20,50,0.85);border:1px solid var(--border);border-radius:10px;padding:10px 14px;backdrop-filter:blur(8px);z-index:20}
+.map-legend h4{font-size:11px;color:var(--white-dim);margin-bottom:6px}
+.legend-item{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--white-dim);margin:4px 0}
+.legend-dot{width:8px;height:8px;border-radius:50%;box-shadow:0 0 8px currentColor}
+.map-info{position:absolute;top:14px;left:14px;background:rgba(10,20,50,0.85);border:1px solid var(--border);border-radius:10px;padding:12px 16px;backdrop-filter:blur(8px);z-index:20;min-width:200px}
+.map-info h4{font-size:12px;color:var(--cyan);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.map-info .coord{font-size:11px;color:var(--white-dim);font-variant-numeric:tabular-nums}
+.scan-line{position:absolute;left:0;right:0;height:2px;z-index:5;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(0,229,255,0.15),transparent);animation:scanDown 8s linear infinite}
+@keyframes scanDown{0%{top:0}100%{top:100%}}
+
+/* === Detail Panel === */
+.detail-panel{height:0;overflow:hidden;background:var(--bg-panel);border-top:1px solid var(--border-glow);transition:height .4s cubic-bezier(.4,0,.2,1);backdrop-filter:blur(16px)}
+.detail-panel.open{height:260px}
+.detail-header{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:1px solid var(--border)}
+.detail-header h3{font-size:14px;color:var(--cyan);display:flex;align-items:center;gap:8px}
+.detail-close{width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--white-dim);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;font-size:14px}
+.detail-close:hover{border-color:var(--cyan);color:var(--cyan)}
+.detail-body{display:flex;gap:16px;padding:14px 20px;height:calc(100% - 46px);overflow-y:auto}
+.detail-img{width:220px;height:100%;flex-shrink:0;border-radius:10px;overflow:hidden;position:relative;border:1px solid var(--border);background:linear-gradient(135deg,rgba(0,40,80,0.4),rgba(0,20,50,0.6))}
+.detail-img .img-placeholder{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--white-dim)}
+.detail-img .img-placeholder .icon{font-size:48px;margin-bottom:8px;opacity:.3}
+.detail-img .img-placeholder span{font-size:12px}
+.detail-img .source-tag{position:absolute;top:8px;right:8px;padding:3px 10px;border-radius:12px;font-size:10px;backdrop-filter:blur(8px)}
+.detail-img .source-tag.ai{background:rgba(0,229,255,0.2);color:var(--cyan);border:1px solid rgba(0,229,255,0.3)}
+.detail-img .source-tag.manual{background:rgba(255,193,7,0.2);color:var(--yellow);border:1px solid rgba(255,193,7,0.3)}
+.detail-info{flex:1;display:flex;flex-direction:column;gap:10px;justify-content:center}
+.detail-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.detail-field{padding:8px 12px;background:var(--bg-card);border-radius:8px;border:1px solid var(--border)}
+.detail-field .label{font-size:10px;color:var(--white-dim);margin-bottom:3px}
+.detail-field .value{font-size:12px;color:var(--white);font-weight:500}
+
+/* === Responsive === */
+@media(max-width:1200px){
+  :root{--left-width:340px}
+  .detail-grid{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="bg-particles" id="particles"></div>
+
+<div class="app">
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">🛸</div>
+      <h1>无人机联动AI识别 · 问题事件管理平台</h1>
+    </div>
+    <div class="header-right">
+      <div class="header-badge"><span class="dot"></span> 系统运行中</div>
+      <div class="header-time" id="headerTime"></div>
+    </div>
+  </header>
+
+  <div class="body">
+    <div class="left-panel" id="leftPanel">
+      <div class="resize-handle" id="resizeHandle"></div>
+
+      <!-- Filters -->
+      <div class="filters">
+        <div class="filter-row">
+          <div class="search-box">
+            <span class="icon">🔍</span>
+            <input type="text" placeholder="搜索事件、机场、任务..." id="searchInput">
+          </div>
+          <div class="filter-group">
+            <label>来源</label>
+            <select class="filter-select" id="filterSource">
+              <option value="">全部</option>
+              <option value="ai">AI识别</option>
+              <option value="manual">人工上报</option>
+            </select>
+          </div>
+        </div>
+        <div class="filter-row">
+          <div class="time-range-group">
+            <label style="font-size:11px;color:var(--white-dim)">时间</label>
+            <input type="datetime-local" class="time-input" id="timeStart">
+            <span class="time-sep">至</span>
+            <input type="datetime-local" class="time-input" id="timeEnd">
+          </div>
+        </div>
+      </div>
+
+      <!-- Toolbar: density, sort, group -->
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <button class="tb-btn" id="btnDensity" onclick="toggleDensity()" title="切换密度">📐 紧凑</button>
+          <div class="tb-divider"></div>
+          <button class="tb-btn active" id="btnGroupAirport" onclick="toggleGroup('airport')" title="按机场分组">🏢 机场</button>
+          <button class="tb-btn" id="btnGroupSource" onclick="toggleGroup('source')" title="按来源分组">📡 来源</button>
+          <button class="tb-btn" id="btnGroupNone" onclick="toggleGroup('none')" title="不分组">≡ 列表</button>
+        </div>
+        <div class="toolbar-right">
+          <span class="tb-info" id="eventCountInfo">12 条</span>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-row">
+        <div class="stat-card"><div class="num" id="statTotal">0</div><div class="label">全部事件</div></div>
+        <div class="stat-card ai"><div class="num" id="statAI">0</div><div class="label">AI识别</div></div>
+        <div class="stat-card manual"><div class="num" id="statManual">0</div><div class="label">人工上报</div></div>
+      </div>
+
+      <!-- Event List (with groups) -->
+      <div class="event-list" id="eventList"></div>
+    </div>
+
+    <div class="right-panel">
+      <div class="map-container">
+        <div class="map-canvas" id="mapCanvas">
+          <div class="scan-line"></div>
+          <svg class="map-grid" width="100%" height="100%">
+            <defs>
+              <pattern id="grid" width="80" height="80" patternUnits="userSpaceOnUse">
+                <path d="M 80 0 L 0 0 0 80" fill="none" stroke="rgba(0,120,255,0.06)" stroke-width="0.5"/>
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#grid)"/>
+            <circle cx="25%" cy="35%" r="120" fill="none" stroke="rgba(0,120,255,0.04)" stroke-width="1"/>
+            <circle cx="25%" cy="35%" r="200" fill="none" stroke="rgba(0,120,255,0.03)" stroke-width="1"/>
+            <circle cx="70%" cy="55%" r="150" fill="none" stroke="rgba(0,120,255,0.04)" stroke-width="1"/>
+            <circle cx="70%" cy="55%" r="250" fill="none" stroke="rgba(0,120,255,0.03)" stroke-width="1"/>
+            <line x1="20%" y1="30%" x2="45%" y2="25%" stroke="rgba(0,150,255,0.06)" stroke-width="0.5" stroke-dasharray="4,4"/>
+            <line x1="45%" y1="25%" x2="72%" y2="40%" stroke="rgba(0,150,255,0.06)" stroke-width="0.5" stroke-dasharray="4,4"/>
+            <line x1="72%" y1="40%" x2="60%" y2="65%" stroke="rgba(0,150,255,0.06)" stroke-width="0.5" stroke-dasharray="4,4"/>
+            <line x1="60%" y1="65%" x2="30%" y2="60%" stroke="rgba(0,150,255,0.06)" stroke-width="0.5" stroke-dasharray="4,4"/>
+            <line x1="30%" y1="60%" x2="20%" y2="30%" stroke="rgba(0,150,255,0.06)" stroke-width="0.5" stroke-dasharray="4,4"/>
+          </svg>
+          <div class="map-label" style="top:18%;left:15%">华东区域</div>
+          <div class="map-label" style="top:22%;left:55%">华北区域</div>
+          <div class="map-label" style="top:55%;left:20%">华南区域</div>
+          <div class="map-label" style="top:60%;left:62%">西南区域</div>
+          <div id="markersContainer"></div>
+        </div>
+        <div class="map-controls">
+          <button class="map-ctrl-btn" title="放大">+</button>
+          <button class="map-ctrl-btn" title="缩小">−</button>
+          <button class="map-ctrl-btn" title="重置">⟲</button>
+          <button class="map-ctrl-btn" title="全屏">⛶</button>
+        </div>
+        <div class="map-legend">
+          <h4>图例</h4>
+          <div class="legend-item"><div class="legend-dot" style="color:var(--cyan);background:var(--cyan)"></div>AI 识别</div>
+          <div class="legend-item"><div class="legend-dot" style="color:var(--yellow);background:var(--yellow)"></div>人工上报</div>
+          <div class="legend-item" style="margin-top:6px;border-top:1px solid var(--border);padding-top:6px">
+            <div style="width:18px;height:18px;border-radius:50%;background:radial-gradient(circle,var(--cyan),var(--blue-deep));display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff">3</div>
+            聚合标记 (同区域多事件)
+          </div>
+        </div>
+        <div class="map-info" id="mapInfo" style="display:none">
+          <h4>📍 选中点位</h4>
+          <div class="coord" id="mapInfoContent"></div>
+        </div>
+      </div>
+
+      <!-- Detail Panel -->
+      <div class="detail-panel" id="detailPanel">
+        <div class="detail-header">
+          <h3>📋 事件详情</h3>
+          <button class="detail-close" onclick="closeDetail()">✕</button>
+        </div>
+        <div class="detail-body">
+          <div class="detail-img" id="detailImg">
+            <div class="img-placeholder"><div class="icon">🖼️</div><span>识别图像</span></div>
+            <div class="source-tag" id="detailSourceTag"></div>
+          </div>
+          <div class="detail-info">
+            <div class="detail-grid" id="detailGrid"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// === Data ===
+const events = [
+  {id:1, title:"光伏板热斑异常检测", source:"ai", airport:"南京禄口机场", mission:"光伏巡检-03", route:"航线A-东区", lat:31.74, lng:118.86, reporter:"AI系统", time:"2026-05-13 14:32:18"},
+  {id:2, title:"输电线路树障告警", source:"ai", airport:"杭州萧山机场", mission:"电力巡检-07", route:"航线B-西线", lat:30.23, lng:120.42, reporter:"AI系统", time:"2026-05-13 14:15:42"},
+  {id:3, title:"工地违规施工发现", source:"manual", airport:"上海浦东机场", mission:"城建巡查-12", route:"航线C-北区", lat:31.14, lng:121.80, reporter:"张伟", time:"2026-05-13 13:58:05"},
+  {id:4, title:"河道水位异常升高", source:"ai", airport:"苏州工业园机场", mission:"水利监测-05", route:"航线D-河道段", lat:31.30, lng:120.62, reporter:"AI系统", time:"2026-05-13 13:42:30"},
+  {id:5, title:"森林火点疑似检测", source:"ai", airport:"合肥新桥机场", mission:"森林防火-09", route:"航线E-南岭段", lat:31.97, lng:117.28, reporter:"AI系统", time:"2026-05-13 13:20:11"},
+  {id:6, title:"道路裂缝人工上报", source:"manual", airport:"南京禄口机场", mission:"市政巡查-02", route:"航线F-主干道", lat:32.06, lng:118.79, reporter:"李明", time:"2026-05-13 12:55:38"},
+  {id:7, title:"建筑外墙脱落风险", source:"ai", airport:"上海浦东机场", mission:"建筑检测-11", route:"航线G-商业区", lat:31.23, lng:121.47, reporter:"AI系统", time:"2026-05-13 12:30:22"},
+  {id:8, title:"非法采砂活动发现", source:"manual", airport:"武汉天河机场", mission:"河道巡查-08", route:"航线H-长江段", lat:30.78, lng:114.21, reporter:"王强", time:"2026-05-13 12:10:45"},
+  {id:9, title:"农田灌溉设施损坏", source:"manual", airport:"杭州萧山机场", mission:"农业监测-04", route:"航线I-农田区", lat:30.05, lng:120.15, reporter:"赵红", time:"2026-05-13 11:48:33"},
+  {id:10, title:"通信基站天线偏移", source:"ai", airport:"苏州工业园机场", mission:"基站巡检-06", route:"航线J-城区段", lat:31.45, lng:120.70, reporter:"AI系统", time:"2026-05-13 11:25:17"},
+  {id:11, title:"危化品仓库温度异常", source:"ai", airport:"南京禄口机场", mission:"安全巡检-01", route:"航线K-工业区", lat:32.12, lng:118.95, reporter:"AI系统", time:"2026-05-13 11:02:09"},
+  {id:12, title:"桥梁结构变形检测", source:"ai", airport:"上海浦东机场", mission:"基建检测-10", route:"航线L-跨江段", lat:31.35, lng:121.55, reporter:"AI系统", time:"2026-05-13 10:40:51"},
+];
+
+// === State ===
+let currentGroup = 'airport';
+let isCompact = false;
+let collapsedGroups = new Set();
+
+const eventList = document.getElementById('eventList');
+const detailPanel = document.getElementById('detailPanel');
+
+// === Helpers ===
+function getSourceText(s){return s==='ai'?'AI识别':'人工上报'}
+function toLocalDatetimeStr(ds){return ds.replace(' ','T').substring(0,16)}
+
+// === Grouping ===
+function groupEvents(filtered){
+  if(currentGroup==='none') return [{key:'__all__', label:'全部事件', icon:'📋', events:filtered}];
+  const groups = {};
+  filtered.forEach(e=>{
+    let key, label, icon;
+    if(currentGroup==='airport'){key=e.airport; label=e.airport; icon='🏢';}
+    else if(currentGroup==='source'){key=e.source; label=getSourceText(e.source); icon=e.source==='ai'?'🤖':'👤';}
+    if(!groups[key]) groups[key]={key,label,icon,events:[]};
+    groups[key].events.push(e);
+  });
+  // Sort by count desc
+  return Object.values(groups).sort((a,b)=>b.events.length-a.events.length);
+}
+
+// === Render List ===
+function renderList(filtered){
+  const groups = groupEvents(filtered);
+  let html = '';
+  groups.forEach(g=>{
+    const collapsed = collapsedGroups.has(g.key);
+    html += `<div class="group-header ${collapsed?'collapsed':''}" onclick="toggleCollapse('${g.key}')">
+      <div class="group-left">
+        <span class="group-icon">${g.icon}</span>
+        <span class="group-name">${g.label}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="group-count">${g.events.length} 条</span>
+        <span class="group-arrow">▼</span>
+      </div>
+    </div>`;
+    if(!collapsed){
+      g.events.forEach(e=>{
+        html += `<div class="event-item" data-id="${e.id}" onclick="selectEvent(${e.id})">
+          <div class="top-row">
+            <div class="title">${e.title}</div>
+            <span class="meta-tag source-${e.source}">${e.source==='ai'?'🤖':'👤'} ${getSourceText(e.source)}</span>
+          </div>
+          ${!isCompact?`<div class="meta">
+            <span class="meta-tag">🛫 ${e.airport}</span>
+            <span class="meta-tag">🛫 ${e.mission}</span>
+          </div>`:''}
+          <div class="bottom-row">
+            <div class="loc">📍 ${e.lat.toFixed(2)}°N, ${e.lng.toFixed(2)}°E</div>
+            <div>🕐 ${e.time}</div>
+          </div>
+        </div>`;
+      });
+    }
+  });
+  eventList.innerHTML = html;
+  document.getElementById('eventCountInfo').textContent = filtered.length + ' 条';
+}
+
+// === Cluster logic for map markers ===
+function clusterMarkers(filtered, threshold=5){
+  // threshold in percentage points
+  const clusters = [];
+  const used = new Set();
+  filtered.forEach((e,i)=>{
+    if(used.has(i)) return;
+    const lngRange=[113.5,122.5], latRange=[29.8,32.3];
+    const x = ((e.lng-lngRange[0])/(lngRange[1]-lngRange[0]))*80+10;
+    const y = (1-(e.lat-latRange[0])/(latRange[1]-latRange[0]))*75+10;
+    const cluster = {x,y,events:[e],sources:new Set([e.source])};
+    used.add(i);
+    filtered.forEach((e2,j)=>{
+      if(used.has(j)) return;
+      const x2 = ((e2.lng-lngRange[0])/(lngRange[1]-lngRange[0]))*80+10;
+      const y2 = (1-(e2.lat-latRange[0])/(latRange[1]-latRange[0]))*75+10;
+      const dist = Math.sqrt((x-x2)**2+(y-y2)**2);
+      if(dist < threshold){
+        cluster.events.push(e2);
+        cluster.sources.add(e2.source);
+        cluster.x = (cluster.x*(cluster.events.length-1)+x2)/cluster.events.length;
+        cluster.y = (cluster.y*(cluster.events.length-1)+y2)/cluster.events.length;
+        used.add(j);
+      }
+    });
+    clusters.push(cluster);
+  });
+  return clusters;
+}
+
+function renderMarkers(filtered){
+  const clusters = clusterMarkers(filtered, 6);
+  let html = '';
+  clusters.forEach(c=>{
+    if(c.events.length===1){
+      // Single marker
+      const e = c.events[0];
+      html += `<div class="marker source-${e.source}" style="left:${c.x}%;top:${c.y}%" onclick="selectEvent(${e.id})">
+        <div class="dot"><div class="dot-inner"></div></div>
+        <div class="tooltip">${e.title}<br>${e.airport} · ${getSourceText(e.source)}</div>
+      </div>`;
+    } else {
+      // Cluster marker
+      const isMixed = c.sources.size > 1;
+      const aiCount = c.events.filter(e=>e.source==='ai').length;
+      const manualCount = c.events.filter(e=>e.source==='manual').length;
+      const tooltipItems = c.events.slice(0,5).map(e=>{
+        const dot = e.source==='ai' ? 'color:var(--cyan)' : 'color:var(--yellow)';
+        return `<div style="padding:3px 14px;display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+          <span style="${dot};font-size:8px">●</span>
+          <span style="overflow:hidden;text-overflow:ellipsis">${e.title}</span>
+        </div>`;
+      }).join('');
+      const more = c.events.length > 5 ? `<div style="padding:3px 14px 6px;color:var(--white-dim);font-size:10px">...及其他 ${c.events.length-5} 条</div>` : '';
+      html += `<div class="cluster-marker" style="left:${c.x}%;top:${c.y}%">
+        <div class="cluster-dot ${isMixed?'mixed':''}">${c.events.length}</div>
+        <div class="cluster-tooltip">
+          <div style="display:flex;justify-content:space-around;padding:8px 10px;background:rgba(0,30,70,0.4);border-bottom:1px solid var(--border)">
+            <div style="text-align:center">
+              <div style="font-size:16px;font-weight:700;color:var(--cyan)">${aiCount}</div>
+              <div style="font-size:9px;color:var(--white-dim);margin-top:1px">🤖 AI识别</div>
+            </div>
+            <div style="width:1px;background:var(--border)"></div>
+            <div style="text-align:center">
+              <div style="font-size:16px;font-weight:700;color:var(--yellow)">${manualCount}</div>
+              <div style="font-size:9px;color:var(--white-dim);margin-top:1px">👤 人工上报</div>
+            </div>
+          </div>
+          <div style="padding:4px 0">${tooltipItems}${more}</div>
+        </div>
+      </div>`;
+    }
+  });
+  document.getElementById('markersContainer').innerHTML = html;
+}
+
+// === Stats ===
+function updateStats(filtered){
+  document.getElementById('statTotal').textContent = filtered.length;
+  document.getElementById('statAI').textContent = filtered.filter(e=>e.source==='ai').length;
+  document.getElementById('statManual').textContent = filtered.filter(e=>e.source==='manual').length;
+}
+
+// === Select Event ===
+function selectEvent(id){
+  const e = events.find(ev=>ev.id===id);
+  if(!e) return;
+  document.querySelectorAll('.event-item').forEach(el=>el.classList.toggle('active',parseInt(el.dataset.id)===id));
+  detailPanel.classList.add('open');
+  const tag = document.getElementById('detailSourceTag');
+  tag.textContent = e.source==='ai'?'🤖 AI 识别':'👤 人工上报';
+  tag.className = 'source-tag ' + e.source;
+  document.getElementById('detailGrid').innerHTML = [
+    ['事件名称',e.title],['来源',getSourceText(e.source)],
+    ['机场名称',e.airport],['任务名称',e.mission],['航线名称',e.route],
+    ['经纬度',`${e.lat.toFixed(4)}°N, ${e.lng.toFixed(4)}°E`],['上报人',e.reporter],['上报时间',e.time],
+  ].map(([l,v])=>`<div class="detail-field"><div class="label">${l}</div><div class="value">${v}</div></div>`).join('');
+  document.getElementById('mapInfo').style.display='block';
+  document.getElementById('mapInfoContent').innerHTML=`${e.title}<br>📍 ${e.lat.toFixed(4)}°N, ${e.lng.toFixed(4)}°E<br>${e.airport} · ${e.mission}`;
+}
+
+function closeDetail(){
+  detailPanel.classList.remove('open');
+  document.querySelectorAll('.event-item').forEach(el=>el.classList.remove('active'));
+  document.getElementById('mapInfo').style.display='none';
+}
+
+// === Filters ===
+function applyFilters(){
+  const search=document.getElementById('searchInput').value.toLowerCase();
+  const source=document.getElementById('filterSource').value;
+  const timeStart=document.getElementById('timeStart').value;
+  const timeEnd=document.getElementById('timeEnd').value;
+  const filtered=events.filter(e=>{
+    if(source&&e.source!==source) return false;
+    if(search&&!e.title.toLowerCase().includes(search)&&!e.airport.toLowerCase().includes(search)&&!e.mission.toLowerCase().includes(search)) return false;
+    const et=toLocalDatetimeStr(e.time);
+    if(timeStart&&et<timeStart) return false;
+    if(timeEnd&&et>timeEnd) return false;
+    return true;
+  });
+  updateStats(filtered);
+  renderList(filtered);
+  renderMarkers(filtered);
+}
+
+// === Group toggle ===
+function toggleGroup(g){
+  currentGroup=g;
+  ['btnGroupAirport','btnGroupSource','btnGroupNone'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  document.getElementById({airport:'btnGroupAirport',source:'btnGroupSource',none:'btnGroupNone'}[g]).classList.add('active');
+  collapsedGroups.clear();
+  applyFilters();
+}
+
+function toggleCollapse(key){
+  if(collapsedGroups.has(key)) collapsedGroups.delete(key);
+  else collapsedGroups.add(key);
+  applyFilters();
+}
+
+// === Density toggle ===
+function toggleDensity(){
+  isCompact=!isCompact;
+  document.getElementById('leftPanel').classList.toggle('compact',isCompact);
+  document.getElementById('btnDensity').textContent=isCompact?'📐 详情':'📐 紧凑';
+  applyFilters();
+}
+
+// === Resizable left panel ===
+(function(){
+  const handle=document.getElementById('resizeHandle');
+  const panel=document.getElementById('leftPanel');
+  let startX,startW,dragging=false;
+  handle.addEventListener('mousedown',e=>{
+    dragging=true;startX=e.clientX;startW=panel.offsetWidth;
+    handle.classList.add('active');document.body.style.cursor='col-resize';e.preventDefault();
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!dragging) return;
+    const newW=Math.max(300,Math.min(700,startW+(e.clientX-startX)));
+    panel.style.width=newW+'px';
+  });
+  document.addEventListener('mouseup',()=>{
+    if(dragging){dragging=false;handle.classList.remove('active');document.body.style.cursor='';}
+  });
+})();
+
+// === Time ===
+function updateTime(){
+  document.getElementById('headerTime').textContent=new Date().toLocaleString('zh-CN',{hour12:false});
+}
+setInterval(updateTime,1000);updateTime();
+
+// === Particles ===
+(function(){
+  const c=document.getElementById('particles');
+  for(let i=0;i<40;i++){const s=document.createElement('span');s.style.left=Math.random()*100+'%';s.style.animationDuration=(6+Math.random()*10)+'s';s.style.animationDelay=Math.random()*8+'s';s.style.width=s.style.height=(1+Math.random()*2)+'px';c.appendChild(s);}
+})();
+
+// === Init ===
+applyFilters();
+</script>
+</body>
+</html>
